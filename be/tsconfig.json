@@ -1,0 +1,17 @@
+{
+	"compilerOptions": {
+		"outDir": "dist",
+		"esModuleInterop": true,
+		"strictNullChecks": true,
+
+		"module": "CommonJS",
+		"target": "ESNext",
+		"moduleResolution": "Node",
+		"baseUrl": ".",
+		"paths": {
+			"~/*": ["src/*"]
+		}
+	},
+	"include": ["src/**/*"],
+	"exclude": ["node_modules"]
+}

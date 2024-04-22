@@ -1,0 +1,42 @@
+{
+	"parser": "@typescript-eslint/parser",
+	"parserOptions": {
+		"ecmaVersion": "latest",
+		"sourceType": "module",
+		"project": ["./tsconfig.json"]
+	},
+
+	"env": {
+		"es2021": true,
+		"node": true
+	},
+	"extends": ["standard-with-typescript", "prettier"],
+	"plugins": ["prefer-arrow-functions", "autofix"],
+	"rules": {
+		// JS
+		"default-case": "off",
+		"curly": ["error", "all"],
+		"no-case-declarations": "error",
+
+		// TS
+		"@typescript-eslint/no-dynamic-delete": "off",
+		"@typescript-eslint/strict-boolean-expressions": "off",
+		"@typescript-eslint/explicit-function-return-type": "off",
+
+		// eslint-plugin-autofix
+		"autofix/no-unused-vars": "error",
+		"autofix/arrow-body-style": ["error", "always"],
+		"autofix/object-curly-newline": ["error", { "ObjectExpression": { "multiline": true, "minProperties": 2 } }],
+
+		// eslint-plugin-prefer-arrow-functions
+		"prefer-arrow-functions/prefer-arrow-functions": [
+			"error",
+			{
+				"classPropertiesAllowed": false,
+				"disallowPrototype": false,
+				"returnStyle": "unchanged",
+				"singleReturnOnly": false
+			}
+		]
+	}
+}
