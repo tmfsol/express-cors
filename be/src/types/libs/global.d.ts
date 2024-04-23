@@ -5,9 +5,6 @@ declare namespace NodeJS {
 		// Cookies
 		COOKIE_SECRET_KEY: string;
 
-		// Session
-		SESSION_SECRET_KEY: string;
-
 		// MongoDB
 		MONGODB_URI: string;
 	}

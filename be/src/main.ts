@@ -1,15 +1,16 @@
-import colors from 'colors';
 import cookieParser from 'cookie-parser';
+import cors from 'cors';
 import express, { type Request, type Response } from 'express';
 import session from 'express-session';
+import fs from 'fs';
+import https from 'https';
 import path from 'path';
 
 import connectMongoDB, { store } from '~/common/connectMongoDB';
 import { getEnv } from '~/configs';
 import { type AppSessionData } from '~/types';
-import { defaultCookieOptions } from '~/utils/cookie';
 
-export const database = {
+export const fakeDatabase = {
 	users: [
 		{
 			id: 1,
@@ -27,131 +28,121 @@ export const database = {
 const bootstrap = async () => {
 	const app = express();
 
-	// Set EJS view engine
-	app.set('view engine', 'ejs');
-	app.set('views', path.join(path.resolve(), './src/views'));
-
 	// Set static file folder
 	app.use(express.static(path.join(path.resolve(), 'public')));
 
 	// Set middlewares
-	app.use(express.urlencoded({ extended: true }));
+	app.use(
+		cors({
+			origin: 'http://localhost:5173',
+			credentials: true,
+		}),
+	);
+	app.use(express.json()); // handle for req.body by application/json
 	app.use(cookieParser(getEnv('COOKIE_SECRET_KEY')));
 
 	app.use(
 		session({
 			store,
-			secret: getEnv('SESSION_SECRET_KEY'),
+			name: 'sessionId',
+			secret: getEnv('COOKIE_SECRET_KEY'),
 			resave: false,
 			saveUninitialized: false,
-			cookie: defaultCookieOptions,
+			cookie: {
+				signed: true,
+				secure: true,
+				httpOnly: true,
+				maxAge: 15 * 60 * 1000,
+				partitioned: true,
+				sameSite: 'none',
+			},
 		}),
 	);
 
-	// Setup MongoDB
-	await connectMongoDB();
-
-	// EJS routes
-	// Home routes
-	app.get('/', (req: Request, res: Response) => {
-		res.render('index');
-	});
-
-	// Auth routes
-	app.get('/login', (req: Request, res: Response) => {
-		if (!req.signedCookies.sessionId) {
-			res.render('auth/login');
-			return;
-		}
-
-		store.get(req.signedCookies.sessionId as string, (err: any, session: AppSessionData) => {
-			if (err || !session) {
-				res.render('auth/login');
-				return;
-			}
-
-			const user = database.users.find((user) => {
-				return user.id === session.userId;
-			});
-
-			if (!user) {
-				res.render('auth/login');
-				return;
-			}
-
-			res.redirect('dashboard');
-		});
-	});
-
+	// Routes
 	app.post('/login', (req: Request, res: Response) => {
 		const { email, password } = req.body;
-		const user = database.users.find((user) => {
+		const user = fakeDatabase.users.find((user) => {
 			return user.email === email && user.password === password;
 		});
 
 		if (!user) {
-			res.redirect('login');
-			return;
+			return res.status(401).json({ message: 'Unauthorized!' });
 		}
 
-		(req.session as AppSessionData).userId = user.id;
-		req.session.save((err: any) => {
-			if (!err) {
-				console.log(colors.green('Saved sessionId sucessfully!'));
-			}
+		(req.session as AppSessionData).sub = { userId: user.id };
+		req.session.save();
+
+		return res.status(200).json({
+			message: 'Login successfully!',
+			data: user,
 		});
-		res.cookie('sessionId', req.sessionID, defaultCookieOptions);
-		res.redirect('dashboard');
 	});
 
-	app.get('/logout', (req: Request, res: Response) => {
-		if (!req.signedCookies.sessionId) {
-			res.render('auth/login');
-			return;
+	app.get('/me', (req: Request, res: Response) => {
+		const { sessionId } = req.signedCookies;
+
+		if (!sessionId) {
+			return res.status(401).json({ message: 'Unauthorized!' });
 		}
 
-		store.destroy(req.signedCookies.sessionId as string, (err: any) => {
-			if (!err) {
-				console.log(colors.green('Destroy sessionId sucessfully!'));
-			}
-		});
-
-		res.cookie('sessionId', '', { expires: new Date(Date.now() - 1) });
-		res.redirect('login');
-	});
-
-	// Dashboard routes
-	app.get('/dashboard', (req: Request, res: Response) => {
-		if (!req.signedCookies.sessionId) {
-			res.redirect('login');
-			return;
-		}
-
-		store.get(req.signedCookies.sessionId as string, (err: any, session: AppSessionData) => {
-			console.log(req.signedCookies.sessionId, err, session);
-
+		store.get(sessionId as string, (err: any, session: AppSessionData) => {
 			if (err || !session) {
-				res.redirect('login');
-				return;
+				return res.status(401).json({ message: 'Unauthorized!' });
 			}
 
-			const user = database.users.find((user) => {
-				return user.id === session.userId;
+			const user = fakeDatabase.users.find((user) => {
+				return user.id === session.sub?.userId;
 			});
 
 			if (!user) {
-				res.redirect('login');
-				return;
+				return res.status(401).json({ message: 'Unauthorized!' });
 			}
 
-			res.render('dashboard', { user });
+			return res.status(200).json({
+				message: 'Login successfully!',
+				data: user,
+			});
 		});
 	});
 
-	// Start app in port
-	app.listen(3000, () => {
-		console.log('App listening at port 3000');
+	app.post('/logout', (req: Request, res: Response) => {
+		const { sessionId } = req.signedCookies;
+
+		if (!sessionId) {
+			return res.status(401).json({ message: 'Unauthorized!' });
+		}
+
+		store.destroy(sessionId as string, (err: any) => {
+			if (!err) {
+				res.clearCookie('sessionId', {
+					signed: true,
+					secure: true,
+					httpOnly: true,
+					partitioned: true,
+					sameSite: 'none',
+				});
+				return res.status(200).json({ message: 'Logout successfully!' });
+			}
+			return res.status(401).json({ message: 'Unauthorized!' });
+		});
 	});
+
+	// Setup MongoDB
+	await connectMongoDB();
+
+	// Start app in port
+	https
+		.createServer(
+			{
+				key: fs.readFileSync('./../be/tmfsol.dev-key.pem'),
+				cert: fs.readFileSync('./../be/tmfsol.dev.pem'),
+			},
+			app,
+		)
+		.listen(3000, () => {
+			console.log('App listening at port 3000');
+		});
 };
 
 void bootstrap();

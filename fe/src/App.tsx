@@ -1,35 +1,73 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { SyntheticEvent, useEffect, useState } from 'react';
 
-function App() {
-  const [count, setCount] = useState(0)
+import userService from './services/userService';
+import axiosClient from './services/axiosClient';
 
-  return (
-    <>
-      <div>
-        <a href="https://vitejs.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
+const App = () => {
+	const [fields, setFields] = useState({
+		email: '',
+		password: ''
+	});
 
-export default App
+	const handleFieldsChange = (event: SyntheticEvent) => {
+		const { name, value } = event.target as HTMLInputElement;
+		setFields((previousState) => ({
+			...previousState,
+			[name]: value
+		}));
+	};
+
+	const handleSubmit = async (event: SyntheticEvent) => {
+		try {
+			event.preventDefault();
+			const { data } = await userService.login(fields);
+			console.log(data);
+		} catch (error) {
+			console.log(error);
+		}
+	};
+
+	const handleLogout = () => {
+		userService.logout();
+	};
+
+	useEffect(() => {
+		axiosClient.get('me', { withCredentials: true });
+	}, []);
+
+	return (
+		<div>
+			<h3>App</h3>
+
+			<form onSubmit={handleSubmit}>
+				<label htmlFor="email">Email: </label>
+				<input
+					id="email"
+					type="text"
+					name="email"
+					value={fields.email}
+					onChange={handleFieldsChange}
+				/>
+				<br />
+
+				<label htmlFor="password">Password: </label>
+				<input
+					id="password"
+					type="password"
+					name="password"
+					value={fields.password}
+					onChange={handleFieldsChange}
+				/>
+				<br />
+
+				<button>Login</button>
+			</form>
+
+			<br />
+
+			<button onClick={handleLogout}>Logout</button>
+		</div>
+	);
+};
+
+export default App;
